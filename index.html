@@ -96,7 +96,8 @@
     <div id="question-container" class="hidden">
       <p id="question"></p>
       <input type="text" id="answer" placeholder="Votre réponse">
-      <button onclick="checkAnswer()">Valider</button>
+      <button id="validate-btn" onclick="checkAnswer()" disabled>Valider</button>
+      <button id="next-btn" onclick="nextStep()" style="display:none; margin-left:10px;">Étape suivante</button>
     </div>
 
     <!-- Box culture -->
@@ -194,7 +195,7 @@
         playerMarker = new google.maps.Marker({
           position: { lat: latitude, lng: longitude },
           map: map,
-          icon: { url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png" }
+          icon: { url: "https://maps.google.com/mapfiles/ms/icons/blue-dot.png" }
         });
       } else {
         playerMarker.setPosition({ lat: latitude, lng: longitude });
@@ -208,7 +209,10 @@
 
       if (dist < 50) {
         showQuestion(step.question);
-      }
+        document.getElementById("validate-btn").disabled = false;
+        } else {
+        document.getElementById("validate-btn").disabled = true;
+        }
     }
 
     function showError(err) {
@@ -220,9 +224,28 @@
     }
 
     function showQuestion(question) {
-      document.getElementById("question").innerText = question;
-      document.getElementById("question-container").classList.remove("hidden");
+        document.getElementById("question").innerText = question;
+        document.getElementById("question-container").classList.remove("hidden");
+
+        // En mode test -> bouton valide direct
+        if (testMode) {
+        document.getElementById("validate-btn").disabled = false;
+        }
     }
+
+    function nextStep() {
+    currentStep++;
+    if (currentStep >= steps.length) {
+        document.getElementById("status").innerText = "🎉 Fin du mode test : toutes les étapes sont terminées.";
+        document.getElementById("question-container").classList.add("hidden");
+        return;
+    }
+    showQuestion(steps[currentStep].question);
+    document.getElementById("status").innerText = `➡️ Étape ${currentStep + 1} (mode test)`;
+    document.getElementById("answer").value = "";
+    document.getElementById("culture-box").classList.remove("show");
+    }
+
 
     function checkAnswer() {
       const input = document.getElementById("answer").value.trim().toLowerCase();
@@ -266,14 +289,29 @@
 
     // 🗝️ Mode test secret
     function toggleTestMode() {
-      testMode = !testMode;
-      if (testMode) {
-        document.getElementById("status").innerText = "🎮 Mode test activé (secret). Cliquez sur les étapes.";
-      } else {
-        document.getElementById("status").innerText = "📍 Mode test désactivé.";
-        initMap();
-      }
+        testMode = !testMode;
+        if (testMode) {
+            document.getElementById("status").innerText = "🎮 Mode test activé. Les énigmes sont visibles.";
+            showQuestion(steps[currentStep].question);
+            document.getElementById("next-btn").style.display = "inline-block";
+            document.getElementById("validate-btn").disabled = false;
+        } else {
+            document.getElementById("next-btn").style.display = "none";
+
+            // 🔄 On vide la question et on cache le cadre
+            document.getElementById("question").innerText = "";
+            document.getElementById("question-container").classList.add("hidden");
+            document.getElementById("answer").value = "";
+            document.getElementById("culture-box").classList.remove("show");
+
+            // ⬇️ Relancer la géolocalisation, status sera mis à jour par updatePosition()
+            document.getElementById("status").innerText = "📍 Reprise du suivi GPS...";
+            initMap();
+        }
     }
+
+
+
   </script>
 
   <script async defer
