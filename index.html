@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <title>Escape Game Lyon - Parcours Culturel</title>
+  <style>
+    body { margin: 0; font-family: "Segoe UI", sans-serif; background: #f9f9f9; }
+    #map { height: 60vh; width: 100%; }
+
+    #game {
+      padding: 15px;
+      max-width: 600px;
+      margin: auto;
+    }
+
+    h1 {
+      text-align: center;
+      font-size: 1.8em;
+      color: #2c3e50;
+      cursor: pointer; /* pour cliquer sur 🗝️ */
+    }
+
+    #status {
+      margin: 15px 0;
+      font-size: 1.1em;
+      text-align: center;
+      color: #34495e;
+    }
+
+    #question-container {
+      background: white;
+      border-radius: 12px;
+      padding: 20px;
+      box-shadow: 0px 4px 12px rgba(0,0,0,0.1);
+      margin-top: 20px;
+      transition: 0.3s;
+    }
+
+    #question {
+      font-weight: bold;
+      margin-bottom: 15px;
+      font-size: 1.1em;
+      color: #2c3e50;
+    }
+
+    #answer {
+      width: 100%;
+      padding: 10px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      margin-bottom: 10px;
+      font-size: 1em;
+    }
+
+    button {
+      background: #3498db;
+      color: white;
+      border: none;
+      padding: 10px 15px;
+      border-radius: 8px;
+      cursor: pointer;
+      font-size: 1em;
+      transition: 0.2s;
+    }
+    button:hover { background: #2980b9; }
+
+    #culture-box {
+      margin-top: 20px;
+      padding: 15px;
+      background: #ecf0f1;
+      border-left: 5px solid #3498db;
+      border-radius: 8px;
+      display: none;
+      opacity: 0;
+      transition: opacity 1s ease-in;
+    }
+
+    #culture-box.show {
+      display: block;
+      opacity: 1;
+    }
+
+    /* Responsive */
+    @media (max-width: 600px) {
+      #map { height: 50vh; }
+      h1 { font-size: 1.4em; }
+    }
+  </style>
+</head>
+<body>
+  <div id="map"></div>
+  <div id="game">
+    <h1 onclick="toggleTestMode()">Escape Game Lyon 🗝️</h1>
+    <p id="status">📍 En attente de votre position...</p>
+
+    <div id="question-container" class="hidden">
+      <p id="question"></p>
+      <input type="text" id="answer" placeholder="Votre réponse">
+      <button onclick="checkAnswer()">Valider</button>
+    </div>
+
+    <!-- Box culture -->
+    <div id="culture-box"></div>
+  </div>
+
+  <script>
+    let map, playerMarker;
+    let currentStep = 0;
+    let testMode = false;
+
+    // Étapes du parcours
+    const steps = [
+      { coords: { lat: 45.757824, lng: 4.832011 }, // Bellecour
+        question: "Cherche le regard du roi de bronze, tourné vers l’est, car dans la lumière qui éclaire le monde, tu trouveras la vérité !",
+        answer: "Soleil",
+        culture: "La statue équestre de Louis XIV, inaugurée en 1825 sur la Place Bellecour, est une œuvre du sculpteur François-Frédéric Lemot. Détail marquant : seuls deux sabots du cheval touchent le sol. Bellecour, plus grande place piétonne d’Europe, fut jadis un terrain militaire et un lieu de rassemblements révolutionnaires.",
+        image: "https://upload.wikimedia.org/wikipedia/commons/3/38/Place_Bellecour_Lyon.jpg"
+      },
+      { coords: { lat: 45.760097, lng: 4.827132 }, // Rue Mercière
+        question: "La rue te remercie de ta visite. Sauras-tu la distinguer ?",
+        answer: "Rue Mercière",
+        culture: "Au Moyen Âge, la rue Mercière abritait imprimeurs et libraires. Elle fut l’un des foyers de l’imprimerie lyonnaise, contribuant à faire de la ville la deuxième capitale européenne du livre au XVIᵉ siècle. Aujourd’hui, elle est célèbre pour ses bouchons lyonnais où l’on déguste quenelles et andouillettes.",
+        image: "https://upload.wikimedia.org/wikipedia/commons/8/83/Rue_Merci%C3%A8re_Lyon.jpg"
+      },
+      { coords: { lat: 45.760145, lng: 4.826751 }, // Cathédrale
+        question: "Lève la tête et fais face au gardien du temps ! Que vois-tu ?",
+        answer: "Horloge",
+        culture: "L’horloge astronomique de la Cathédrale Saint-Jean date du XIVᵉ siècle. Elle indique l’heure, les positions du soleil et de la lune, et ses automates s’animent chaque jour à midi. Chef-d’œuvre gothique et roman, la cathédrale fut témoin de couronnements et de visites papales.",
+        image: "https://upload.wikimedia.org/wikipedia/commons/9/9d/Cathedrale_Saint-Jean-Baptiste_de_Lyon.jpg"
+      },
+      { coords: { lat: 45.762178, lng: 4.822353 }, // Fourvière
+        question: "Dans la crypte, il te faudra suivre le chemin de la vérité pour rester en vie. Quelle référence vois-tu ?",
+        answer: "Jean 14:6",
+        culture: "Dans la crypte de Fourvière se trouve une mosaïque portant le verset : 'Je suis le chemin, la vérité et la vie'. La basilique, achevée en 1896, fut bâtie en remerciement à la Vierge Marie. Elle mêle style néo-byzantin et symbolisme religieux, et domine la ville comme protectrice des Lyonnais.",
+        image: "https://upload.wikimedia.org/wikipedia/commons/f/f6/Basilique_Notre-Dame_de_Fourvi%C3%A8re_-_Lyon.jpg"
+      },
+      { coords: { lat: 45.767274, lng: 4.834307 }, // Fontaine Bartholdi
+        question: "Devant toi, un char tiré par des chevaux. Combien sont-ils sur la fontaine de Bartholdi ?",
+        answer: "4",
+        culture: "La Fontaine Bartholdi, installée Place des Terreaux en 1892, représente la France guidée par une femme allégorique, tirée par quatre chevaux incarnant les fleuves. Œuvre du sculpteur de la Statue de la Liberté, elle symbolise la puissance et le mouvement de l’eau.",
+        image: "https://upload.wikimedia.org/wikipedia/commons/5/5d/Fontaine_Bartholdi_Lyon.jpg"
+      },
+      { coords: { lat: 45.767564, lng: 4.835663 }, // Opéra
+        question: "Combien de muses décorent le sommet de l’Opéra de Lyon ?",
+        answer: "8",
+        culture: "Réhabilité par Jean Nouvel en 1993, l’Opéra de Lyon mêle façade néoclassique et architecture contemporaine. Son toit est surmonté de huit muses, une de moins que dans la mythologie, pour laisser une place à la création moderne.",
+        image: "https://upload.wikimedia.org/wikipedia/commons/7/70/Opera_de_Lyon.jpg"
+      },
+      { coords: { lat: 45.767582, lng: 4.827852 }, // Pont de la Feuillée
+        question: "Quel pont traversez-vous ici avec vue sur la Saône ?",
+        answer: "Pont de la Feuillée",
+        culture: "Construit en 1831, le Pont de la Feuillée fut le premier pont suspendu de Lyon. Il relie le Vieux Lyon à la Presqu’île et doit son nom à un café voisin très populaire au XIXᵉ siècle. Aujourd’hui, il offre une vue splendide sur la Saône, le Vieux Lyon et Fourvière.",
+        image: "https://upload.wikimedia.org/wikipedia/commons/2/24/Pont_de_la_Feuill%C3%A9e_Lyon.jpg"
+      }
+    ];
+
+    function initMap() {
+      map = new google.maps.Map(document.getElementById("map"), {
+        zoom: 15,
+        center: steps[0].coords
+      });
+
+      const path = steps.map(step => step.coords);
+      new google.maps.Polyline({
+        path: path,
+        geodesic: true,
+        strokeColor: "#0000FF",
+        strokeOpacity: 0.7,
+        strokeWeight: 4,
+        map: map
+      });
+
+      steps.forEach((step, i) => {
+        new google.maps.Marker({
+          position: step.coords,
+          map: map,
+          label: `${i + 1}`,
+          title: `Étape ${i + 1}`
+        });
+      });
+
+      if (navigator.geolocation && !testMode) {
+        navigator.geolocation.watchPosition(updatePosition, showError, { enableHighAccuracy: true });
+      } else if (!testMode) {
+        document.getElementById("status").innerText = "❌ La géolocalisation n'est pas supportée.";
+      }
+    }
+
+    function updatePosition(position) {
+      if (testMode) return;
+      const { latitude, longitude } = position.coords;
+
+      if (!playerMarker) {
+        playerMarker = new google.maps.Marker({
+          position: { lat: latitude, lng: longitude },
+          map: map,
+          icon: { url: "http://maps.google.com/mapfiles/ms/icons/blue-dot.png" }
+        });
+      } else {
+        playerMarker.setPosition({ lat: latitude, lng: longitude });
+      }
+
+      const step = steps[currentStep];
+      const dist = distance(latitude, longitude, step.coords.lat, step.coords.lng);
+
+      document.getElementById("status").innerText =
+        `🎯 Objectif Étape ${currentStep + 1} - Distance : ${dist.toFixed(0)} m`;
+
+      if (dist < 50) {
+        showQuestion(step.question);
+      }
+    }
+
+    function showError(err) {
+      if (err.code === err.PERMISSION_DENIED) {
+        document.getElementById("status").innerText = "⚠️ Vous devez autoriser la géolocalisation.";
+      } else {
+        document.getElementById("status").innerText = "❌ Erreur : " + err.message;
+      }
+    }
+
+    function showQuestion(question) {
+      document.getElementById("question").innerText = question;
+      document.getElementById("question-container").classList.remove("hidden");
+    }
+
+    function checkAnswer() {
+      const input = document.getElementById("answer").value.trim().toLowerCase();
+      const correct = steps[currentStep].answer.toLowerCase();
+
+      if (input === correct) {
+        const img = steps[currentStep].image || "https://upload.wikimedia.org/wikipedia/commons/thumb/6/64/Flag_of_Lyon.svg/320px-Flag_of_Lyon.svg.png";
+
+        const box = document.getElementById("culture-box");
+        box.innerHTML = `
+          <p>📖 ${steps[currentStep].culture}</p>
+          <img src="${img}" alt="Illustration" style="max-width:100%; border-radius:8px; margin-top:10px;">
+        `;
+        box.classList.add("show");
+
+        currentStep++;
+        document.getElementById("answer").value = "";
+
+        if (currentStep >= steps.length) {
+          document.getElementById("status").innerText = "🎉 Félicitations, vous avez terminé l’Escape Game de Lyon !";
+          document.getElementById("question-container").classList.add("hidden");
+        } else {
+          document.getElementById("status").innerText = "➡️ Direction l’étape suivante ! Suivez la ligne bleue.";
+          document.getElementById("question-container").classList.add("hidden");
+        }
+      } else {
+        alert("❌ Mauvaise réponse !");
+      }
+    }
+
+    function distance(lat1, lon1, lat2, lon2) {
+      const R = 6371000;
+      const toRad = x => (x * Math.PI) / 180;
+      const dLat = toRad(lat2 - lat1);
+      const dLon = toRad(lon2 - lon1);
+      const a = Math.sin(dLat/2)**2 +
+                Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
+                Math.sin(dLon/2)**2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    // 🗝️ Mode test secret
+    function toggleTestMode() {
+      testMode = !testMode;
+      if (testMode) {
+        document.getElementById("status").innerText = "🎮 Mode test activé (secret). Cliquez sur les étapes.";
+      } else {
+        document.getElementById("status").innerText = "📍 Mode test désactivé.";
+        initMap();
+      }
+    }
+  </script>
+
+  <script async defer
+    src="https://maps.googleapis.com/maps/api/js?key=AIzaSyCDm7NiUWX2d88Yo6MVSdSm00dt2O6xuGg&callback=initMap">
+  </script>
+</body>
+</html>
