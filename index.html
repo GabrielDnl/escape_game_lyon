@@ -201,18 +201,32 @@
         playerMarker.setPosition({ lat: latitude, lng: longitude });
       }
 
-      const step = steps[currentStep];
-      const dist = distance(latitude, longitude, step.coords.lat, step.coords.lng);
+      let nearestStep = null;
+let nearestDist = Infinity;
 
-      document.getElementById("status").innerText =
-        `🎯 Objectif Étape ${currentStep + 1} - Distance : ${dist.toFixed(0)} m`;
+// Cherche l’étape la plus proche
+steps.forEach((step, i) => {
+  const d = distance(latitude, longitude, step.coords.lat, step.coords.lng);
+  if (d < nearestDist) {
+    nearestDist = d;
+    nearestStep = i;
+  }
+});
 
-      if (dist < 50) {
-        showQuestion(step.question);
-        document.getElementById("validate-btn").disabled = false;
-        } else {
-        document.getElementById("validate-btn").disabled = true;
-        }
+// Affiche l’info de distance par rapport à l’étape la plus proche
+document.getElementById("status").innerText =
+  `🎯 Étape ${nearestStep + 1} - Distance : ${nearestDist.toFixed(0)} m`;
+
+// Si on est assez proche, active cette étape
+if (nearestDist < 50) {
+  currentStep = nearestStep;   // 👉 On met à jour l’étape en cours
+  showQuestion(steps[currentStep].question);
+  document.getElementById("validate-btn").disabled = false;
+} else {
+  document.getElementById("question-container").classList.add("hidden");
+  document.getElementById("validate-btn").disabled = true;
+}
+
     }
 
     function showError(err) {
@@ -319,4 +333,5 @@
   </script>
 </body>
 </html>
+
 
